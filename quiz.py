@@ -4,39 +4,63 @@ import random
 import re
 
 def load_questions(filename, question_prefix, option_prefixes, answer_prefix):
+    """Load questions from a specified file, parsing them based on provided prefixes."""
     with open(filename, 'r') as file:
         lines = file.readlines()
     
-    questions = []
-    question = {}
-    answer_map = {}
-
+    questions = []  # List to hold all the questions
+    answer_map = {}  # Dictionary to map question numbers to their answers
+    
+    # Create a mapping for answers from the file
     for line in lines:
         line = line.strip()
         if re.match(r'^\d+\.\s*[A-Z]', line):
             number, answer = line.split('.', 1)
             answer_map[int(number.strip())] = answer.strip()
 
+    question_text = []  # To store text of the current question
+    options = []  # To store options for the current question
+    question = False  # Flag to track if we're currently building a question
+
     for line in lines:
         line = line.strip()
+        
+        # Check for the start of a question
         if line.startswith(question_prefix):
-            if question:
-                questions.append(question)
-                question = {}
-            question['question'] = line
-            question_number = len(questions) + 1
-            if question_number in answer_map:
-                question['answer'] = answer_map[question_number]
-            else:
-                question['answer'] = ''
-        elif any(line.startswith(prefix) for prefix in option_prefixes):
-            question.setdefault('options', []).append(line)
-        elif line.startswith(answer_prefix) and question:
-            question['answer'] = line.split(": ")[1].strip()
+            if question:  # If we were already building a question, save it
+                questions.append({'question': ' '.join(question_text), 'options': options, 'answer': answer_map.get(len(questions) + 1, '')})
+                question_text = []  # Reset for the new question
+                options = []  # Reset options for the new question
+            
+            question = True  # Set flag to indicate we are in a question
+            question_text.append(line[len(question_prefix):].strip())  # Add the question text
+        
+        # If we're building a question, check for options and answer prefix
+        elif question:
+            # Check for option prefixes
+            if any(line.startswith(prefix) for prefix in option_prefixes):
+                options.append(line)  # Add option to the list
+            elif line.startswith(answer_prefix):
+                # Save the answer directly
+                questions.append({'question': ' '.join(question_text), 'options': options, 'answer': line.split(": ")[1].strip()})
+                question_text = []  # Reset question text after saving
+                options = []  # Reset options after saving
+                question = False  # End the current question
+            elif line:  # Non-empty line while in question context
+                question_text.append(line)  # Collect the rest of the question lines
 
-    if question:
-        questions.append(question)
+        # Empty line signifies the end of the current question
+        elif question and line == "":
+            questions.append({'question': ' '.join(question_text), 'options': options, 'answer': answer_map.get(len(questions) + 1, '')})
+            question_text = []  # Reset for the next question
+            options = []  # Reset options for the next question
+            question = False  # End the current question
 
+    # Add the last question if it exists
+    if question_text:
+        questions.append({'question': ' '.join(question_text), 'options': options, 'answer': answer_map.get(len(questions) + 1, '')})
+
+    # Fill in missing answers for questions without one
     for i, question in enumerate(questions):
         if 'answer' not in question or not question['answer']:
             question['answer'] = answer_map.get(i + 1, '')
@@ -44,11 +68,12 @@ def load_questions(filename, question_prefix, option_prefixes, answer_prefix):
     if not questions:
         raise ValueError("No questions found in the file. Please check the file format.")
 
-    random.shuffle(questions)
+    random.shuffle(questions)  # Shuffle the questions for randomness
     return questions
 
 class QuizApp:
     def __init__(self, root):
+        """Initialize the main application window."""
         self.root = root
         self.root.title("Dynamic Quiz App")
         self.root.geometry("600x600")
@@ -59,6 +84,7 @@ class QuizApp:
         self.scrollbar = Scrollbar(root, orient="vertical", command=self.canvas.yview)
         self.scrollable_frame = tk.Frame(self.canvas, bg="#f0f0f0")
 
+        # Configure the scrollable frame
         self.scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
 
@@ -73,15 +99,15 @@ class QuizApp:
         # Input for prefixes
         self.question_prefix_entry = tk.Entry(self.scrollable_frame, font=("Arial", 12), width=40)
         self.question_prefix_entry.pack(pady=5)
-        self.question_prefix_entry.insert(0, "Question Prefix (e.g., NO.)")
+        self.question_prefix_entry.insert(0, "Question Prefix,NO.")  # Default prefix
 
         self.option_prefixes_entry = tk.Entry(self.scrollable_frame, font=("Arial", 12), width=40)
         self.option_prefixes_entry.pack(pady=5)
-        self.option_prefixes_entry.insert(0, "Option Prefixes (e.g., A., B., C., D.)")
+        self.option_prefixes_entry.insert(0, "A., B., C., D.")  # Default option prefixes
 
         self.answer_prefix_entry = tk.Entry(self.scrollable_frame, font=("Arial", 12), width=40)
         self.answer_prefix_entry.pack(pady=5)
-        self.answer_prefix_entry.insert(0, "Answer Prefix (e.g., Answer:)")
+        self.answer_prefix_entry.insert(0, "Answer:")  # Default answer prefix
 
         # Load Questions Button
         self.load_button = tk.Button(self.scrollable_frame, text="Load Questions", command=self.load_questions_from_file, bg="#4CAF50", fg="white", font=("Arial", 14))
@@ -94,7 +120,7 @@ class QuizApp:
         self.percentage_label = tk.Label(self.scrollable_frame, text="Percentage: 0%", font=("Arial", 14), bg="#f0f0f0")
         self.percentage_label.pack(pady=10)
 
-        # Next button
+        # Next button to check the answer
         self.next_button = tk.Button(self.scrollable_frame, text="Next", command=self.check_answer, bg="#4CAF50", fg="white", font=("Arial", 14))
         self.next_button.pack(pady=20)
 
@@ -106,16 +132,16 @@ class QuizApp:
         self.center_content()
 
         # Other variables
-        self.questions = []
-        self.current_question = 0
-        self.score = 0
-        self.incorrect_answers = []
+        self.questions = []  # List of loaded questions
+        self.current_question = 0  # Index of the current question
+        self.score = 0  # User's score
+        self.incorrect_answers = []  # List to store incorrect answers
 
-        # Bind resize event
+        # Bind resize event to adjust layout
         self.root.bind("<Configure>", self.center_content)
 
     def center_content(self, event=None):
-        # Center the scrollable frame in the canvas
+        """Center the scrollable frame in the canvas."""
         width = self.root.winfo_width()
         height = self.root.winfo_height()
         frame_width = self.scrollable_frame.winfo_width()
@@ -127,6 +153,7 @@ class QuizApp:
         self.canvas.place(x=x, y=y, width=frame_width, height=frame_height)
 
     def load_questions_from_file(self):
+        """Load questions from a file selected by the user."""
         filename = filedialog.askopenfilename(title="Select a Questions File", filetypes=[("Text files", "*.txt")])
         if filename:
             question_prefix = self.question_prefix_entry.get().strip()
@@ -134,78 +161,87 @@ class QuizApp:
             answer_prefix = self.answer_prefix_entry.get().strip()
 
             try:
+                # Load the questions using the specified prefixes
                 self.questions = load_questions(filename, question_prefix, option_prefixes, answer_prefix)
                 self.current_question = 0
                 self.score = 0
-                self.score_label.config(text=f"Score: {self.score}")
-                self.percentage_label.config(text="Percentage: 0%")
-                self.load_question()
+                self.score_label.config(text=f"Score: {self.score}")  # Reset score label
+                self.percentage_label.config(text="Percentage: 0%")  # Reset percentage label
+                self.load_question()  # Load the first question
             except ValueError as e:
+                # Show error if questions could not be loaded
                 messagebox.showerror("Error", str(e))
 
     def load_question(self):
+        """Load and display the current question and its options."""
         for widget in self.question_frame.winfo_children():
             widget.destroy()  # Clear previous question and options
 
         if self.current_question < len(self.questions):
             question_data = self.questions[self.current_question]
             question_label = tk.Label(self.question_frame, text=question_data['question'], wraplength=550, font=("Arial", 16), bg="#f0f0f0")
-            question_label.pack(pady=10)
+            question_label.pack(pady=10)  # Display the question
 
             if ',' in question_data['answer']:
+                # Handle multiple correct answers
                 self.check_vars = []
                 for option in question_data['options']:
-                    var = tk.BooleanVar()
-                    checkbox = tk.Checkbutton(self.question_frame, text=option, variable=var, bg="#f0f0f0", font=("Arial", 12))
-                    checkbox.pack(anchor='w')
-                    self.check_vars.append(var)
+                    var = tk.BooleanVar()  # Variable to hold the checkbox state
+                    check_button = tk.Checkbutton(self.question_frame, text=option, variable=var, bg="#f0f0f0")
+                    check_button.pack(anchor=tk.W)  # Place checkbox in the question frame
+                    self.check_vars.append((var, option))  # Append to list for answer checking
             else:
-                self.option_var = tk.StringVar()
+                # For single correct answer
+                self.selected_option = tk.StringVar()  # Variable to hold selected answer
                 for option in question_data['options']:
-                    rb = tk.Radiobutton(self.question_frame, text=option, variable=self.option_var, value=option, bg="#f0f0f0", font=("Arial", 12))
-                    rb.pack(anchor='w')
+                    radio_button = tk.Radiobutton(self.question_frame, text=option, variable=self.selected_option, value=option, bg="#f0f0f0")
+                    radio_button.pack(anchor=tk.W)  # Place radio button in the question frame
+
+            self.next_button['state'] = tk.NORMAL  # Enable the Next button
+
         else:
-            self.show_result()
+            # No more questions
+            self.finish_quiz()
 
     def check_answer(self):
-        correct_answer = self.questions[self.current_question]['answer'].strip()
+        """Check the selected answer against the correct answer and update the score."""
+        if self.current_question < len(self.questions):
+            question_data = self.questions[self.current_question]
+            correct_answer = question_data['answer']
 
-        if ',' in correct_answer:
-            selected_options = [option[0] for var, option in zip(self.check_vars, self.questions[self.current_question]['options']) if var.get()]
-            correct_options = [option.strip() for option in correct_answer.split(",")]
-
-            if sorted(selected_options) == sorted(correct_options):
-                self.score += 1
-                messagebox.showinfo("Result", "Correct!")
+            if ',' in correct_answer:  # Check for multiple answers
+                selected_answers = [var[1] for var in self.check_vars if var[0].get()]  # Collect selected answers
+                if sorted(selected_answers) == sorted(correct_answer.split(', ')):  # Compare with correct answers
+                    self.score += 1  # Increase score if correct
+                else:
+                    self.incorrect_answers.append(question_data['question'])  # Save incorrect answer
             else:
-                self.incorrect_answers.append((self.questions[self.current_question]['question'], correct_answer))
-                messagebox.showinfo("Result", f"Wrong! The correct answers are: {', '.join(correct_options)}")
-        else:
-            selected_option = self.option_var.get().strip()
-            selected_option_letter = selected_option.split('.')[0].strip()
+                # For single answer comparison
+                if self.selected_option.get() == correct_answer:
+                    self.score += 1  # Increase score if correct
+                else:
+                    self.incorrect_answers.append(question_data['question'])  # Save incorrect answer
 
-            if selected_option_letter == correct_answer:
-                self.score += 1
-                messagebox.showinfo("Result", "Correct!")
-            else:
-                self.incorrect_answers.append((self.questions[self.current_question]['question'], correct_answer))
-                messagebox.showinfo("Result", f"Wrong! The correct answer is: {correct_answer}")
+            self.score_label.config(text=f"Score: {self.score}")  # Update score display
+            self.current_question += 1  # Move to the next question
+            self.load_question()  # Load the next question
 
-        self.current_question += 1
-        total_questions_attempted = self.current_question
-        self.score_label.config(text=f"Score: {self.score}")
+    def finish_quiz(self):
+        """Display the final score and percentage after quiz completion."""
+        for widget in self.question_frame.winfo_children():
+            widget.destroy()  # Clear the question frame
 
-        if total_questions_attempted > 0:
-            percentage = (self.score / total_questions_attempted) * 100
-            self.percentage_label.config(text=f"Percentage: {percentage:.2f}%")
+        total_questions = len(self.questions)
+        percentage = (self.score / total_questions) * 100 if total_questions > 0 else 0
 
-        self.load_question()
+        final_label = tk.Label(self.question_frame, text=f"Quiz Finished!\nScore: {self.score}/{total_questions}\nPercentage: {percentage:.2f}%", font=("Arial", 16), bg="#f0f0f0")
+        final_label.pack(pady=20)  # Show final score and percentage
 
-    def show_result(self):
-        messagebox.showinfo("Quiz Completed", f"Your total score: {self.score}/{len(self.questions)}")
-        self.root.quit()
+        if self.incorrect_answers:
+            incorrect_label = tk.Label(self.question_frame, text="Incorrect Answers:\n" + "\n".join(self.incorrect_answers), font=("Arial", 14), bg="#f0f0f0")
+            incorrect_label.pack(pady=10)  # Display incorrect answers
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = QuizApp(root)
-    root.mainloop()
+    root = tk.Tk()  # Create the main application window
+    app = QuizApp(root)  # Initialize the QuizApp
+    root.mainloop()  # Start the main loop
