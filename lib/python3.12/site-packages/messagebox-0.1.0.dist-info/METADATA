@@ -1,0 +1,52 @@
+Metadata-Version: 2.1
+Name: messagebox
+Version: 0.1.0
+Summary: display messageboxes without library dependency like tkinter
+Home-page: https://github.com/PlayerG9/PyMessageBox
+Author: PlayerG9
+License: UNKNOWN
+Project-URL: Author Github, https://github.com/PlayerG9
+Project-URL: Bug Tracker, https://github.com/PlayerG9/PyMessageBox/issues
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+# PyMessageBox
+ Messagebox for userinput/useroutput **WITHOUT library dependencies** like tkinter
+
+
+# Supported platforms [^1]
+
+| Platform     | Supported | Tested |
+| ------------ | --------- | ------ |
+| Windows      | ✓         | ✓     |
+| Linux/Mint   | ✓         | ✕     |
+| Linux/Ubuntu | ✓         | ✕     |
+| Linux/Xorg   | ✕         | ✕     |
+| Linux/GNOME  | ✕         | ✕     |
+| macOS        | ✕         | ✕     |
+
+[^1]: I need tester. please report bugs etc. under your platform  
+
+# Message-Boxes
+- showinfo
+- showwarning
+- showerror
+- askquestion
+- askokcancel
+- askyesno
+- askretrycancel
+
+# Usage
+
+```python
+import messagebox
+
+messagebox.showinfo('Success', 'This package works')
+```
+
+
